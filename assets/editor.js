@@ -80,5 +80,57 @@ for(const button of document.querySelectorAll("[data-insert]"))button.addEventLi
  const body=fields.body;body.setRangeText(snippets[button.dataset.insert],body.selectionStart,body.selectionEnd,"end");body.focus();save();
 });
 window.addEventListener("beforeunload",e=>{if(dirty&&!storageOK){e.preventDefault();e.returnValue="";}});
+
+const publishButton = document.getElementById("publish");
+const tokenField = document.getElementById("github-token");
+document.getElementById("forget-token").addEventListener("click",()=>{tokenField.value="";message("Token 已清除。");});
+publishButton.addEventListener("click", async () => {
+ let token = tokenField.value.trim();
+ let snapshot;
+ try {
+  snapshot=values();
+  if(!snapshot.slug.trim()){snapshot.slug="note-"+Date.now().toString(36);fields.slug.value=snapshot.slug;save();}
+  const result=exportMarkdown(snapshot);
+  if(!token)throw new Error("请先输入仅授权博客仓库的 GitHub Token。");
+  if(!confirm(`将《${snapshot.title.trim()}》提交到公开仓库的 _posts/${result.filename}。正文提交后可被查看。${snapshot.date>today()?"日期在未来，博客暂不展示，但源文件公开。":""}继续发布？`))return;
+  publishButton.disabled=true;message("正在验证账号并检查文章……");
+  const headers={Accept:"application/vnd.github+json",Authorization:"Bearer "+token};
+  async function request(url, options={}) {
+   const response=await fetch(url,{...options,headers:{...headers,...options.headers},cache:"no-store"});
+   if(response.status===401)throw new Error("Token 无效或已过期，请重新创建。");
+   if(response.status===403)throw new Error("权限不足或请求受限，请检查仓库选择、Contents 读写权限和 GitHub 状态。");
+   return response;
+  }
+  const userResponse=await request("https://api.github.com/user");
+  if(!userResponse.ok)throw new Error("无法验证 GitHub 账号，请稍后重试。");
+  const user=await userResponse.json();
+  if(user.login!=="qawozeixructyv")throw new Error("请使用博客所有者 qawozeixructyv 的 Token。");
+  const endpoint="https://api.github.com/repos/qawozeixructyv/qawozeixructyv.github.io/contents/_posts/"+encodeURIComponent(result.filename);
+  const existing=await request(endpoint+"?ref=main");
+  let sha;
+  if(existing.ok){
+   const data=await existing.json();
+   if(data.type!=="file")throw new Error("同名路径不是文件，请更换文章文件名。");
+   sha=data.sha;
+   if(!confirm(`仓库已有 ${result.filename}，将替换该文章的全部内容。确定更新？`)){message("已取消更新，草稿保留。");return;}
+  } else if(existing.status!==404)throw new Error("检查文章失败，请稍后重试。");
+  const bytes=new TextEncoder().encode(result.content);
+  let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);
+  const payload={message:(sha?"更新文章：":"发布文章：")+snapshot.title.trim(),content:btoa(binary),branch:"main"};
+  if(sha)payload.sha=sha;
+  message("正在提交文章……");
+  const response=await request(endpoint,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  if(!response.ok){
+   if(response.status===409)throw new Error("仓库内容已变化，请重新发布并确认更新。");
+   if(response.status===404)throw new Error("找不到仓库，请检查 Token 是否选中了博客仓库。");
+   if(response.status===422)throw new Error("提交被拒绝，请检查分支规则或文件名。");
+   throw new Error("提交失败，请到 GitHub 检查文章是否存在后再重试。");
+  }
+  message("文章已提交到 GitHub；这不代表网页已上线。请到仓库 Actions 查看 Pages 构建结果。"+(snapshot.date>today()?"文章日期在未来，博客暂不展示。":""));
+ } catch(err) {
+  message(err instanceof TypeError?"网络请求失败，请到 GitHub 检查是否已提交后再重试。":err.message);
+ } finally {token="";publishButton.disabled=false;}
+});
+
 preview();
 })();
