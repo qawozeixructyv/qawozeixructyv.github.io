@@ -17,6 +17,9 @@ exclude:
 - LOCAL-PREVIEW.html
 - START-HERE.md
 - preview
+- infinite-tau-blog (1)
+- UPDATE-GUIDE.md
+- preview-cute.html
 defaults:
 - scope:
     path: ''

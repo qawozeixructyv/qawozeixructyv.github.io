@@ -12,14 +12,9 @@
 
 网页并不是在线内容管理系统：导出只会下载文件，上传到 GitHub 并提交后才会公开发布。
 
-## 第一次上线
+## 上传这次更新
 
-1. 在 GitHub 创建一个公开仓库，名字准确填写 `qawozeixructyv.github.io`。地址：https://github.com/new 。当前连接无法代你创建仓库；仓库是否存在需要 GitHub 实际返回确认。
-2. 在空仓库上传本压缩包**里面**的文件与目录，不要上传 zip，不要再套一层父文件夹。确保 `_config.yml`、`index.html`、`_layouts/`、`_includes/` 和 `assets/` 在根目录。
-3. Settings → Pages → Build and deployment → Source 选 Deploy from a branch，选 main 和 /(root)，保存。
-4. 在 Actions 查看 Pages 构建结果。成功后 GitHub 给出网址 `https://qawozeixructyv.github.io/`。
-
-如果仓库已经有内容，先检查，不要覆盖原有文件。
+仓库已创建。本次动漫风更新请按 **UPDATE-GUIDE.md** 上传到现有仓库根目录。
 
 ## 发布一篇文章
 
@@ -61,6 +56,6 @@
 
 本版本检查了配置和页面元数据、JavaScript 语法、文章导出与不安全文本的预览处理、文件链接及压缩包完整性。
 
-制作环境没有 Ruby / Jekyll 和可用浏览器预览，尚未执行 Jekyll 构建或浏览器交互测试；博客也尚未上线。首次发布后以 GitHub Pages 构建结果为准。
+制作环境没有 Ruby / Jekyll 和可用浏览器预览，尚未执行 Jekyll 构建或浏览器交互测试；本次更新尚未上传。上传后以 GitHub Pages 构建结果为准。
 
 官方上线说明：https://docs.github.com/en/pages/quickstart

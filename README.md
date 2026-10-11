@@ -4,6 +4,6 @@
 
 不存在十全十美的文章，一如不存在彻头彻尾的绝望。
 
-先阅读 **START-HERE.md**。双击 `write.html` 可以现在开始写；双击 `preview.html` 可以查看外观。
+动漫风更新请先读 **UPDATE-GUIDE.md**。双击 `preview.html` 查看外观，双击 `write.html` 开始写作。
 
-这是 GitHub Pages / Jekyll 博客，尚未上线。当前环境未执行真实 Jekyll 构建。
+这是 GitHub Pages / Jekyll 博客源码。本次更新尚未上传到 GitHub；真实构建以 GitHub Actions 为准。
