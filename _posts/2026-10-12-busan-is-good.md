@@ -1,7 +1,7 @@
 ---
 title: "釜山行纪 想去海边"
 date: 2026-10-12
-categories: ["随笔"]
+categories: ["游记"]
 description: ""
 ---
 
