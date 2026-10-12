@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-const ids = ["title", "date", "category", "description", "slug", "body", "cover", "audio", "audio_title"];
+const ids = ["title", "date", "category", "description", "slug", "body", "cover", "audio", "audio_title", "video", "video_title"];
 const fields = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 const status = document.getElementById("status");
 const key = "life-elsewhere-draft-v1";
@@ -9,8 +9,9 @@ fields.date.value = today();
 let dirty = false;
 let coverCleared=false;
 let audioCleared=false;
+let videoCleared=false;
 let storageOK = true;
-const values = () => ({...Object.fromEntries(ids.map(id => [id, fields[id].value])),_removedCover:coverCleared,_removedAudio:audioCleared});
+const values = () => ({...Object.fromEntries(ids.map(id => [id, fields[id].value])),_removedCover:coverCleared,_removedAudio:audioCleared,_removedVideo:videoCleared});
 function message(text) { status.textContent = text; }
 const mediaPreviews = new Map();
 function safeImageURL(path) {
@@ -25,6 +26,12 @@ function removeInsertedPhoto(index) {
  message("已从正文移除这张图片，发布更新后生效。画廊与已上传文件保留。");
 }
 function preview() {
+ const videoPreview=document.getElementById("editor-video-preview");
+ const videoURL=safeImageURL(fields.video.value.trim());
+ videoPreview.hidden=!videoURL;
+ if(videoURL){if(videoPreview.getAttribute("src")!==videoURL)videoPreview.src=videoURL;}
+ else{videoPreview.pause();videoPreview.removeAttribute("src");videoPreview.load();}
+ if(fields.cover.value.trim())videoPreview.poster=safeImageURL(fields.cover.value.trim());else videoPreview.removeAttribute("poster");
  const inserted=document.getElementById("inserted-photos");inserted.replaceChildren();
  const audioPreview=document.getElementById("editor-audio-preview");
  const audioURL=safeImageURL(fields.audio.value.trim());
@@ -78,7 +85,7 @@ function save() {
 }
 try {
  const raw=localStorage.getItem(key);
- if(raw) {const saved=JSON.parse(raw);coverCleared=saved._removedCover===true;audioCleared=saved._removedAudio===true;for(const id of ids)if(typeof saved[id]==="string")fields[id].value=saved[id];if(!["游记","随笔"].includes(fields.category.value))fields.category.value="随笔";message("已恢复当前浏览器中的草稿");}
+ if(raw) {const saved=JSON.parse(raw);coverCleared=saved._removedCover===true;audioCleared=saved._removedAudio===true;videoCleared=saved._removedVideo===true;for(const id of ids)if(typeof saved[id]==="string")fields[id].value=saved[id];if(!["游记","随笔"].includes(fields.category.value))fields.category.value="随笔";message("已恢复当前浏览器中的草稿");}
 } catch {storageOK=false;message("无法读取本机草稿，请使用导出备份。");}
 for(const id of ids)fields[id].addEventListener("input",save);
 function download(filename, text, type) {
@@ -91,8 +98,8 @@ function exportMarkdown(d) {
  const slug=d.slug.trim() || "note-"+Date.now().toString(36);
  if(!/^[a-zA-Z0-9-]+$/.test(slug))throw new Error("文件名只支持英文字母、数字和短横线。");
  const quote=JSON.stringify;
- for(const id of ['cover','audio'])if(d[id]&&!safeImageURL(d[id].trim()))throw new Error("封面与音频请使用 /assets/ 路径或 https:// 地址。");
- return {filename:d.date+"-"+slug+".md",content:"---\ntitle: "+quote(title)+"\ndate: "+d.date+"\ncategories: ["+quote(d.category)+"]\ndescription: "+quote(d.description.trim())+(["cover","audio","audio_title"].filter(id=>d[id].trim()).map(id=>"\n"+id+": "+quote(d[id].trim())).join(""))+"\n---\n\n"+d.body.trim()+"\n"};
+ for(const id of ['cover','audio','video'])if(d[id]&&!safeImageURL(d[id].trim()))throw new Error("封面、音频与视频请使用 /assets/ 路径或 https:// 地址。");
+ return {filename:d.date+"-"+slug+".md",content:"---\ntitle: "+quote(title)+"\ndate: "+d.date+"\ncategories: ["+quote(d.category)+"]\ndescription: "+quote(d.description.trim())+(["cover","audio","audio_title","video","video_title"].filter(id=>d[id].trim()).map(id=>"\n"+id+": "+quote(d[id].trim())).join(""))+"\n---\n\n"+d.body.trim()+"\n"};
 }
 document.getElementById("editor").addEventListener("submit",e=>{
  e.preventDefault();try {const result=exportMarkdown(values());download(result.filename,result.content,"text/markdown;charset=utf-8");dirty=false;message(fields.date.value>today()?"已导出；文章日期在未来，上线后会暂时隐藏。":"已导出 Markdown。上传到仓库 _posts 后才会发布。");}catch(err){message(err.message);}
@@ -100,7 +107,7 @@ document.getElementById("editor").addEventListener("submit",e=>{
 document.getElementById("backup").addEventListener("click",()=>{download("life-elsewhere-draft-"+today()+".json",JSON.stringify(values(),null,2),"application/json");dirty=false;message("已导出草稿备份，正文仍保留在编辑器。");});
 document.getElementById("clear").addEventListener("click",()=>{
  if(!confirm("清空当前草稿？未导出的内容将无法恢复。"))return;
- coverCleared=true;audioCleared=true;for(const id of ids)fields[id].value="";fields.date.value=today();fields.category.value="随笔";
+ coverCleared=true;audioCleared=true;videoCleared=true;for(const id of ids)fields[id].value="";fields.date.value=today();fields.category.value="随笔";
  try{localStorage.removeItem(key);}catch{}dirty=false;preview();message("当前草稿已清空。");
 });
 document.getElementById("import").addEventListener("change",async e=>{
@@ -108,10 +115,10 @@ document.getElementById("import").addEventListener("change",async e=>{
  try {
    if(file.size>5*1024*1024)throw new Error("草稿文件过大（最多 5 MB）。");
    const data=JSON.parse(await file.text());
-   if(data&&typeof data=== "object"&&!Array.isArray(data))for(const id of ["cover","audio","audio_title"])if(data[id]===undefined)data[id]="";
+   if(data&&typeof data=== "object"&&!Array.isArray(data))for(const id of ["cover","audio","audio_title","video","video_title"])if(data[id]===undefined)data[id]="";
    if(!data || typeof data!=="object" || Array.isArray(data) || ids.some(id=>typeof data[id]!=="string") || !["随笔","游记"].includes(data.category) || !/^\d{4}-\d{2}-\d{2}$/.test(data.date))throw new Error("请选择由此写作工具导出的 JSON 草稿。");
    if(ids.some(id=>fields[id].value && !["date","category"].includes(id)) && !confirm("导入会替换当前草稿。请先导出备份。继续导入？"))return;
-   coverCleared=data._removedCover===true;audioCleared=data._removedAudio===true;for(const id of ids)fields[id].value=data[id];save();message("草稿已导入。"+(storageOK?"":"请导出备份，当前浏览器无法保存。"));
+   coverCleared=data._removedCover===true;audioCleared=data._removedAudio===true;videoCleared=data._removedVideo===true;for(const id of ids)fields[id].value=data[id];save();message("草稿已导入。"+(storageOK?"":"请导出备份，当前浏览器无法保存。"));
  }catch(err){message("导入失败："+err.message);}finally{e.target.value="";}
 });
 for(const button of document.querySelectorAll("[data-insert]"))button.addEventListener("click",()=>{
@@ -154,10 +161,10 @@ publishButton.addEventListener("click", async () => {
    if(data.content){
     const original=decodeBase64Text(data.content);
     const fm=/^---\r?\n([\s\S]*?)\r?\n---/.exec(original);
-    for(const id of ['cover','audio','audio_title']){
-     if(snapshot[id].trim()||(id==='cover'?coverCleared:audioCleared))continue;
+    for(const id of ['cover','audio','audio_title','video','video_title']){
+     if(snapshot[id].trim()||(id==='cover'?coverCleared:id.startsWith('video')?videoCleared:audioCleared))continue;
      const match=fm&&new RegExp('^'+id+':\\s*(.+)$','m').exec(fm[1]);
-     if(match){let value=match[1].trim();try{value=JSON.parse(value);}catch{value=value.replace(/^'(.*)'$/,"$1");}if(typeof value==='string'&&(id==='audio_title'||safeImageURL(value))){snapshot[id]=value;fields[id].value=value;}}
+     if(match){let value=match[1].trim();try{value=JSON.parse(value);}catch{value=value.replace(/^'(.*)'$/,"$1");}if(typeof value==='string'&&(id.endsWith('_title')||safeImageURL(value))){snapshot[id]=value;fields[id].value=value;}}
     }
     result=exportMarkdown(snapshot);save();
    }
@@ -229,6 +236,71 @@ function insertPhoto(photo,caption){
  const text='\n\n!['+alt+']('+photo.path+')\n\n';
  const body=fields.body;body.setRangeText(text,body.selectionStart,body.selectionEnd,'end');body.focus();save();
 }
+async function checkPhotoReferences(photo,token){
+ const basename=photo.path.split('/').pop();
+ for(const folder of ['_posts','_drafts']){
+  const response=await mediaAPI(folder+'?ref=main',token);
+  if(response.status===404)continue;
+  if(!response.ok)throw new Error('无法检查文章引用，未删除图片。');
+  const entries=await response.json();
+  if(!Array.isArray(entries)||entries.length>=1000||entries.some(x=>x.type==='dir'))throw new Error('文章目录较大或包含子目录，无法完整检查，未删除图片。');
+  for(const entry of entries){
+   if(entry.type!=='file'||! /\.(md|markdown|html)$/i.test(entry.name))continue;
+   const r=await mediaAPI(entry.path.split('/').map(encodeURIComponent).join('/')+'?ref=main',token);
+   if(!r.ok)throw new Error('读取文章失败，未删除图片。');
+   const file=await r.json();
+   if(file.encoding!=='base64'||typeof file.content!=='string')throw new Error('无法完整读取文章，未删除图片。');
+   const text=decodeBase64Text(file.content);
+   if(text.includes(photo.path)||text.includes(basename)||text.includes(encodeURIComponent(basename)))throw new Error('图片仍被 '+entry.path+' 使用。请先从该文章中移除图片或封面并发布更新，再删除仓库文件。');
+  }
+ }
+}
+async function removePhotoRecord(photo,token){
+ for(let attempt=0;attempt<3;attempt++){
+  const {photos,sha}=await readPhotos(token);
+  const kept=photos.filter(p=>p.path!==photo.path);
+  if(kept.length===photos.length)return false;
+  const r=await mediaAPI('_data/photos.json',token,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({branch:'main',sha,message:'从画廊移除照片：'+photo.caption,content:encodeText(JSON.stringify(kept,null,2)+'\n')})});
+  if(r.ok)return true;
+  if(r.status===409||r.status===422)continue;
+  throw new Error('移除画廊记录失败，未删除图片文件。');
+ }
+ throw new Error('画廊更新冲突，未删除图片，请重试。');
+}
+async function deleteRepositoryPhoto(photo,token){
+ if(!/^\/assets\/images\/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:jpe?g|png|webp|gif)$/i.test(photo.path))throw new Error('只能删除 assets/images 中的照片，不能删除外部图片或其他代码文件。');
+ await verifyMediaOwner(token);
+ await checkPhotoReferences(photo,token);
+ const endpoint=photo.path.slice(1).split('/').map(encodeURIComponent).join('/');
+ const response=await mediaAPI(endpoint+'?ref=main',token);
+ if(!response.ok&&response.status!==404)throw new Error('无法读取图片文件，未执行删除。');
+ const file=response.ok?await response.json():null;
+ if(file&&(file.type!=='file'||!file.sha))throw new Error('目标不是普通图片文件，未删除。');
+ if(!confirm('将从仓库当前版本删除 '+photo.path+'，同时移除画廊记录和当前草稿里的图片引用。Git 历史中的旧副本仍可能存在。确定删除？'))return false;
+ const removedRecord=await removePhotoRecord(photo,token);
+ if(!file)return true;
+ try{
+  const r=await mediaAPI(endpoint,token,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({branch:'main',sha:file.sha,message:'删除照片：'+photo.caption})});
+  if(r.ok||r.status===404)return true;
+  throw new Error('图片删除被拒绝（'+r.status+'）。');
+ }catch(err){
+  // A lost response may still mean the deletion succeeded; resolve before restoring.
+  try{const current=await mediaAPI(endpoint+'?ref=main',token);if(current.status===404)return true;}catch{}
+  if(removedRecord){try{await syncPhoto(photo,token);}catch{throw new Error('图片删除未确认，画廊恢复也失败。请检查 GitHub 文件和 _data/photos.json 后再操作。');}}
+  throw new Error('图片删除失败或未确认，画廊记录已保留或恢复。请检查仓库后重试。');
+ }
+}
+function removePhotoFromDraft(path){
+ let fenced=false;
+ fields.body.value=fields.body.value.split('\n').filter(line=>{
+  if(/^```/.test(line)){fenced=!fenced;return true;}if(fenced)return true;
+  const m=/^!\[[^\]]*\]\(([^\s)]+)\)\s*$/.exec(line);
+  return !(m&&(m[1]===path||m[1]==='https://qawozeixructyv.github.io'+path));
+ }).join('\n');
+ if(fields.cover.value.trim()===path||fields.cover.value.trim()==='https://qawozeixructyv.github.io'+path){fields.cover.value='';coverCleared=true;}
+ const blob=mediaPreviews.get(path);if(blob){URL.revokeObjectURL(blob);mediaPreviews.delete(path);}save();
+}
+
 function addPhotoTile(photo,pending=false){
  if(!safeImageURL(photo.path))return;
  const tile=document.createElement('div');tile.className='photo-tile';
@@ -238,6 +310,19 @@ function addPhotoTile(photo,pending=false){
  const insert=document.createElement('button');insert.type='button';insert.textContent='插入正文';insert.addEventListener('click',()=>insertPhoto(photo,caption.value));
  const cover=document.createElement('button');cover.type='button';cover.textContent='设为封面';cover.addEventListener('click',()=>{fields.cover.value=photo.path;coverCleared=false;save();});
  tile.append(image,caption,path,insert,cover);
+ const permanentlyDelete=document.createElement('button');permanentlyDelete.type='button';permanentlyDelete.className='delete-from-repo';permanentlyDelete.textContent='从仓库删除';
+ permanentlyDelete.addEventListener('click',async()=>{
+  if(uploading||publishButton.disabled){mediaStatus.textContent='请等待当前上传或发布完成。';return;}
+  uploading=true;publishButton.disabled=true;permanentlyDelete.disabled=true;
+  try{
+   mediaStatus.textContent='正在检查文章引用……';
+   const deleted=await deleteRepositoryPhoto(photo,tokenField.value.trim());
+   if(!deleted){mediaStatus.textContent='已取消删除。';return;}
+   removePhotoFromDraft(photo.path);tile.remove();
+   mediaStatus.textContent='已从仓库当前版本和画廊移除图片。当前草稿引用也已移除，页面更新需等待 Pages 构建。';
+  }catch(err){mediaStatus.textContent=err.message;}
+  finally{uploading=false;publishButton.disabled=false;permanentlyDelete.disabled=false;}
+ });tile.append(permanentlyDelete);
  if(pending){const retry=document.createElement('button');retry.type='button';retry.textContent='重试同步';retry.addEventListener('click',async()=>{retry.disabled=true;try{const token=tokenField.value.trim();await verifyMediaOwner(token);await syncPhoto(photo,token);retry.remove();mediaStatus.textContent='画廊同步成功，等待 Pages 构建。';}catch(err){mediaStatus.textContent=err.message;}finally{retry.disabled=false;}});tile.append(retry);}
  photoLibrary.prepend(tile);
 }
@@ -321,6 +406,39 @@ audioInput.addEventListener('change',async e=>{
   audioCleared=false;save();audioStatus.textContent='音频已上传。发布文章后会出现提示，默认不播放。';
  }catch(err){audioStatus.textContent=err.message;}
  finally{uploading=false;publishButton.disabled=false;photoInput.disabled=false;audioInput.disabled=false;audioInput.value='';}
+});
+
+const videoInput=document.getElementById('video-file');
+const videoStatus=document.getElementById('video-status');
+for(const id of ['video','video_title'])fields[id].addEventListener('input',()=>{videoCleared=true;save();});
+document.getElementById('clear-video').addEventListener('click',()=>{fields.video.value='';fields.video_title.value='';videoCleared=true;save();videoStatus.textContent='已移除文章 Vlog，发布更新后生效。仓库视频文件保留。';});
+async function validateVideo(file){
+ if(!file.size||file.size>50*1024*1024)throw new Error('Vlog 最多 50 MB。较大的视频请压缩，或填写外部视频直链。');
+ const head=new Uint8Array(await file.slice(0,32).arrayBuffer());
+ const signature=String.fromCharCode(...head);
+ if(signature.slice(4,8)==='ftyp'&&(/\.mp4$/i.test(file.name)||file.type==='video/mp4'))return 'mp4';
+ if(head[0]===26&&head[1]===69&&head[2]===223&&head[3]===163&&(/\.webm$/i.test(file.name)||file.type==='video/webm'))return 'webm';
+ throw new Error('请选择 MP4 或 WebM 视频。MOV 请先导出为 MP4（建议 H.264 视频与 AAC 音频）。');
+}
+videoInput.addEventListener('change',async e=>{
+ const file=e.target.files[0];if(!file)return;
+ if(uploading||publishButton.disabled){videoStatus.textContent='请等待当前上传或发布完成后再选择 Vlog。';videoInput.value='';return;}
+ uploading=true;publishButton.disabled=true;photoInput.disabled=true;audioInput.disabled=true;videoInput.disabled=true;
+ try{
+  const token=tokenField.value.trim();await verifyMediaOwner(token);
+  const ext=await validateVideo(file);
+  if(!confirm('Vlog 将立即上传到公开仓库。发布文章后读者可手动播放，默认不播放。继续？'))return;
+  videoStatus.textContent='正在读取并上传 Vlog，大文件可能需要较长时间……';
+  const path='assets/video/'+today()+'-'+crypto.randomUUID()+'.'+ext;
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  const r=await mediaAPI(path,token,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({branch:'main',message:'上传文章 Vlog',content:encodeBytes(bytes)})});
+  if(!r.ok)throw new Error('Vlog 上传失败（'+r.status+'）。请检查权限与网络，或压缩后重试。');
+  fields.video.value='/'+path;
+  if(!fields.video_title.value.trim())fields.video_title.value=file.name.replace(/\.[^.]+$/,'');
+  mediaPreviews.set(fields.video.value,URL.createObjectURL(file));videoCleared=false;save();
+  videoStatus.textContent='Vlog 已上传，可在下方手动预览。发布文章后显示 Vlog 提示与播放器。';
+ }catch(err){videoStatus.textContent=err.message;}
+ finally{uploading=false;publishButton.disabled=false;photoInput.disabled=false;audioInput.disabled=false;videoInput.disabled=false;videoInput.value='';}
 });
 
 preview();
